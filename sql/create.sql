@@ -1,0 +1,9 @@
+CREATE TABLE recipes (
+    id INT IDENTITY(1,1) PRIMARY KEY,
+    name NVARCHAR(100) NOT NULL,
+    description NVARCHAR(MAX) NOT NULL,
+    ingredients NVARCHAR(MAX) NOT NULL,
+    category NVARCHAR(50) NOT NULL,
+    type NVARCHAR(50) NOT NULL,
+    created_at DATETIME DEFAULT GETDATE()
+); 
