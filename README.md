@@ -2,6 +2,10 @@
 
 A bilingual (English/Czech) Streamlit application for managing your personal recipe collection. The app allows you to add, edit, delete, and search through your recipes with support for images and multiple categories.
 
+## Live Demo
+
+The application is deployed and available at: [https://recepty.streamlit.app/](https://recepty.streamlit.app/)
+
 ## Features
 
 - 🌍 Bilingual interface (English/Czech)
