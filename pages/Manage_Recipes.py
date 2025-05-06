@@ -2,30 +2,32 @@ import streamlit as st
 import os
 from db import Database
 from translations import TRANSLATIONS
+import time
+from scripts.config import setup_page_config
+from scripts.shared import navigation
+
+# Set up universal page configuration with page-specific title
+setup_page_config('manage_recipes')
 
 # Initialize session state for language if not exists
 if 'language' not in st.session_state:
     st.session_state.language = 'cs'
 
-# Initialize database
-db = Database()
-
 # Function to get translation
 def t(key):
     return TRANSLATIONS[st.session_state.language][key]
 
-# Page config
-st.set_page_config(
-    page_title=f"{t('manage_recipes')} - {t('app_title')}",
-    page_icon="✏️",
-    layout="wide"
-)
+# Custom navigation in sidebar
+navigation(t)
+
+# Initialize database
+db = Database()
 
 # Main content
 st.title(t('manage_recipes'))
 
 # Add new recipe section
-st.subheader(f"➕ {t('add_recipe')}")
+st.subheader(t('add_recipe'))
 with st.form("add_dish_form"):
     name = st.text_input(t('recipe_name'))
     ingredients = st.text_area(t('ingredients'))
@@ -70,12 +72,15 @@ with st.form("add_dish_form"):
         
         if db.add_dish(name, ingredients, note, category_str, type, image_path):
             st.success(t('recipe_added'))
+            st.toast(t('recipe_added'))
+            time.sleep(1)
             st.rerun()
         else:
             st.error(t('add_failed'))
+            st.toast(t('add_failed'))
 
 # Edit and Delete section
-st.subheader(f"📝 {t('edit_recipe')}")
+st.subheader(t('edit_recipe'))
 
 # Display all recipes for editing
 dishes = db.get_all_dishes()
@@ -85,7 +90,7 @@ else:
     for dish in dishes:
         st.subheader(dish['name'])
         
-        with st.expander(f"✏️ {t('edit_recipe')}"):
+        with st.expander(t('edit_recipe')):
             with st.form(f"edit_dish_{dish['id']}"):
                 new_name = st.text_input(t('recipe_name'), value=dish['name'])
                 new_ingredients = st.text_area(t('ingredients'), value=dish['ingredients'])
@@ -142,13 +147,19 @@ else:
                     
                     if db.update_dish(dish['id'], new_name, new_ingredients, new_note, new_category_str, new_type, new_image_path):
                         st.success(t('recipe_updated'))
+                        st.toast(t('recipe_updated'))
+                        time.sleep(1)
                         st.rerun()
+                        
                     else:
                         st.error(t('update_failed'))
+                        st.toast(t('update_failed'))
         
-        if st.button(f"🗑️ {t('delete_recipe')}", key=f"delete_{dish['id']}"):
+        if st.button(t('delete_recipe'), key=f"delete_{dish['id']}"):
             if db.delete_dish(dish['id']):
                 st.success(t('recipe_deleted'))
+                st.toast(t('recipe_deleted'))
+                time.sleep(1)
                 st.rerun()
             else:
                 st.error(t('delete_failed'))

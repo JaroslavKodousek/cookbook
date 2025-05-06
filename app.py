@@ -1,5 +1,7 @@
 import streamlit as st
 from translations import TRANSLATIONS
+from scripts.shared import navigation
+from scripts.config import setup_page_config
 
 # Initialize session state for language if not exists
 if 'language' not in st.session_state:
@@ -9,28 +11,11 @@ if 'language' not in st.session_state:
 def t(key):
     return TRANSLATIONS[st.session_state.language][key]
 
-# Set page config
-st.set_page_config(
-    page_title=t('app_title'),
-    page_icon="🍽️",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
+# Set up universal page configuration
+setup_page_config()
 
-# Language selector in sidebar
-with st.sidebar:
-    st.write("🌍 Language / Jazyk")
-    col1, col2 = st.columns(2)
-    with col1:
-        if st.button("🇬🇧 English", use_container_width=True, 
-                    type="primary" if st.session_state.language == 'en' else "secondary"):
-            st.session_state.language = 'en'
-            st.rerun()
-    with col2:
-        if st.button("🇨🇿 Čeština", use_container_width=True,
-                    type="primary" if st.session_state.language == 'cs' else "secondary"):
-            st.session_state.language = 'cs'
-            st.rerun()
+# Custom navigation in sidebar
+navigation(t)
 
 # Main content
 st.title(t('welcome_title'))

@@ -1,24 +1,25 @@
 import streamlit as st
 from db import Database
 from translations import TRANSLATIONS
+from scripts.config import setup_page_config
+from scripts.shared import navigation
+
+# Set up universal page configuration with page-specific title
+setup_page_config('find_recipes')
 
 # Initialize session state for language if not exists
 if 'language' not in st.session_state:
     st.session_state.language = 'cs'
 
-# Initialize database
-db = Database()
-
 # Function to get translation
 def t(key):
     return TRANSLATIONS[st.session_state.language][key]
 
-# Page config
-st.set_page_config(
-    page_title=f"{t('find_recipes')} - {t('app_title')}",
-    page_icon="🔍",
-    layout="wide"
-)
+# Custom navigation in sidebar
+navigation(t)
+
+# Initialize database
+db = Database()
 
 # Main content
 st.title(t('find_recipes'))
@@ -39,7 +40,7 @@ else:
     cols = st.columns(2)
     for idx, dish in enumerate(dishes):
         with cols[idx % 2]:
-            st.subheader(f"📝 {dish['name']}")
+            st.subheader(dish['name'])
             
             # Display image if it exists
             if dish['image_path']:
