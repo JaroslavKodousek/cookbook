@@ -1,11 +1,12 @@
 import streamlit as st
-from translations import TRANSLATIONS
-from scripts.shared import navigation
-from scripts.config import setup_page_config
 
 # Initialize session state for language if not exists
 if 'language' not in st.session_state:
     st.session_state.language = 'cs'
+
+from scripts.translations import TRANSLATIONS
+from scripts.shared import navigation
+from scripts.config import setup_page_config
 
 # Function to get translation
 def t(key):

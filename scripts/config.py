@@ -1,5 +1,5 @@
 import streamlit as st
-from translations import TRANSLATIONS
+from scripts.translations import TRANSLATIONS
 
 def setup_page_config(page_title_key=None):
     """Set up the universal page configuration for the entire app.

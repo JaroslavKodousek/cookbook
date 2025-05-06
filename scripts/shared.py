@@ -1,5 +1,5 @@
 import streamlit as st
-from translations import TRANSLATIONS
+from scripts.translations import TRANSLATIONS
 
 def navigation(t):
     with st.sidebar:
