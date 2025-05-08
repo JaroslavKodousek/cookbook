@@ -7,7 +7,7 @@ if 'language' not in st.session_state:
 from scripts.db import Database
 from scripts.translations import TRANSLATIONS
 from scripts.config import setup_page_config
-from scripts.shared import navigation
+from scripts.shared import navigation, display_image
 
 # Set up universal page configuration with page-specific title
 setup_page_config('browse_collection')
@@ -39,10 +39,7 @@ else:
             
             # Display image if it exists
             if dish['image_path']:
-                try:
-                    st.image(dish['image_path'], caption=dish['name'], use_container_width=True)
-                except:
-                    st.warning(t('image_not_found'))
+                display_image(dish['image_path'], caption=dish['name'])
             
             st.write(f"**{t('category')}:** {dish['category']}")
             st.write(f"**{t('type')}:** {dish['type']}")

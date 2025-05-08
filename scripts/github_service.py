@@ -1,0 +1,99 @@
+import os
+import base64
+import streamlit as st
+from github import Github
+
+class GitHubService:
+    def __init__(self):
+        # Get secrets from Streamlit
+        self.github_token = st.secrets["github"]["token"]
+        self.repo_name = st.secrets["github"]["repo"]
+        self.owner = st.secrets["github"]["owner"]
+        
+        if not all([self.github_token, self.repo_name, self.owner]):
+            raise ValueError("Missing GitHub configuration. Please set github.token, github.repo, and github.owner in Streamlit secrets")
+        
+        self.github = Github(self.github_token)
+        self.repo = self.github.get_user(self.owner).get_repo(self.repo_name)
+        
+    def upload_image(self, image_data, filename):
+        """Upload an image to GitHub repository.
+        
+        Args:
+            image_data: Can be one of:
+                - A file-like object (e.g., from st.file_uploader)
+                - A bytes object
+                - A base64 encoded string
+                - A URL string
+            filename: The name to save the file as
+        """
+        try:
+            # Handle file-like objects (e.g., from st.file_uploader)
+            if hasattr(image_data, 'read'):
+                content = base64.b64encode(image_data.read()).decode('utf-8')
+            # Handle bytes objects
+            elif isinstance(image_data, bytes):
+                content = base64.b64encode(image_data).decode('utf-8')
+            # Handle string inputs
+            elif isinstance(image_data, str):
+                if image_data.startswith('data:image'):
+                    # Base64 image data with data URL prefix
+                    content = image_data.split(',')[1]
+                elif image_data.startswith('http'):
+                    # If it's a URL, return it directly
+                    return image_data
+                else:
+                    # Raw base64 image data
+                    content = image_data
+            else:
+                raise ValueError("Unsupported image data type. Please provide a file, bytes, or string.")
+            
+            # Create path in images directory
+            path = f"images/{filename}"
+            
+            try:
+                # Try to get existing file to get its SHA
+                contents = self.repo.get_contents(path)
+                # Update existing file
+                self.repo.update_file(
+                    path=path,
+                    message=f"Update image: {filename}",
+                    content=content,
+                    sha=contents.sha,
+                    branch="main"
+                )
+            except Exception:
+                # File doesn't exist, create new file
+                self.repo.create_file(
+                    path=path,
+                    message=f"Add image: {filename}",
+                    content=content,
+                    branch="main"
+                )
+            
+            # Return the raw URL for the image
+            return f"https://raw.githubusercontent.com/{self.owner}/{self.repo_name}/main/{path}"
+            
+        except Exception as e:
+            st.error(f"Error uploading image to GitHub: {str(e)}")
+            return None
+            
+    def delete_image(self, filename):
+        """Delete an image from GitHub repository."""
+        try:
+            path = f"images/{filename}"
+            contents = self.repo.get_contents(path)
+            self.repo.delete_file(
+                path=path,
+                message=f"Delete image: {filename}",
+                sha=contents.sha,
+                branch="main"
+            )
+            return True
+        except Exception as e:
+            st.error(f"Error deleting image from GitHub: {str(e)}")
+            return False
+            
+    def get_image_url(self, filename):
+        """Get the raw URL for an image."""
+        return f"https://raw.githubusercontent.com/{self.owner}/{self.repo_name}/main/images/{filename}" 

@@ -1,9 +1,6 @@
 # Virtual Environment
-venv/
+.venv/
 __pycache__/
 
-# Database
-*.db
-
-# Images
-images/
+# GitHub
+.streamlit/secrets.toml

@@ -1,19 +1,14 @@
 import sqlite3
 import os
 from typing import List, Dict, Any
+from .github_service import GitHubService
 
 class Database:
     def __init__(self, db_name: str = "cookbook.db"):
         self.db_name = db_name
-        self.images_dir = "images"
+        self.github_service = GitHubService()
         self.init_db()
         self.migrate_db()
-        self.ensure_images_dir()
-
-    def ensure_images_dir(self):
-        """Create images directory if it doesn't exist."""
-        if not os.path.exists(self.images_dir):
-            os.makedirs(self.images_dir)
 
     def init_db(self):
         conn = sqlite3.connect(self.db_name)
@@ -59,8 +54,19 @@ class Database:
         conn.commit()
         conn.close()
 
-    def add_dish(self, name: str, ingredients: str, instructions: str, category: str, type: str, image_path: str = None) -> bool:
+    def add_dish(self, name: str, ingredients: str, instructions: str, category: str, type: str, image_data=None) -> bool:
         try:
+            image_path = None
+            if image_data:
+                # Handle different types of image data
+                if hasattr(image_data, 'name'):
+                    # File upload object
+                    filename = f"{name}_{image_data.name}"
+                else:
+                    # For string data (URL or base64), use a generic name
+                    filename = f"{name}_image.png"
+                image_path = self.github_service.upload_image(image_data, filename)
+            
             conn = sqlite3.connect(self.db_name)
             c = conn.cursor()
             c.execute('''
@@ -70,7 +76,8 @@ class Database:
             conn.commit()
             conn.close()
             return True
-        except sqlite3.Error:
+        except Exception as e:
+            print(f"Error adding dish: {str(e)}")
             return False
 
     def get_all_dishes(self) -> List[Dict[str, Any]]:
@@ -91,10 +98,43 @@ class Database:
         conn.close()
         return dishes
 
-    def update_dish(self, dish_id: int, name: str, ingredients: str, instructions: str, category: str, type: str, image_path: str = None) -> bool:
+    def update_dish(self, dish_id: int, name: str, ingredients: str, instructions: str, category: str, type: str, image_data=None) -> bool:
         try:
             conn = sqlite3.connect(self.db_name)
             c = conn.cursor()
+            
+            # Get current image path
+            c.execute('SELECT image_path FROM dishes WHERE id = ?', (dish_id,))
+            current_image_path = c.fetchone()[0]
+            
+            # Handle image update
+            image_path = current_image_path
+            if image_data is None:  # If image_data is None, we want to delete the image
+                if current_image_path:
+                    try:
+                        filename = current_image_path.split('/')[-1]
+                        self.github_service.delete_image(filename)
+                        image_path = None  # Set image_path to None since we deleted the image
+                    except Exception as e:
+                        print(f"Warning: Could not delete image: {str(e)}")
+            elif image_data != current_image_path:  # Only update if we have new image data
+                # Delete old image if it exists and is different from the new one
+                if current_image_path:
+                    try:
+                        filename = current_image_path.split('/')[-1]
+                        self.github_service.delete_image(filename)
+                    except Exception as e:
+                        print(f"Warning: Could not delete old image: {str(e)}")
+                
+                # Handle different types of image data
+                if hasattr(image_data, 'name'):
+                    # File upload object
+                    filename = f"{name}_{image_data.name}"
+                else:
+                    # For string data (URL or base64), use a generic name
+                    filename = f"{name}_image.png"
+                image_path = self.github_service.upload_image(image_data, filename)
+            
             c.execute('''
                 UPDATE dishes
                 SET name = ?, ingredients = ?, instructions = ?, category = ?, type = ?, image_path = ?
@@ -103,14 +143,16 @@ class Database:
             conn.commit()
             conn.close()
             return True
-        except sqlite3.Error:
+        except Exception as e:
+            print(f"Error updating dish: {str(e)}")
             return False
 
     def delete_dish(self, dish_id: int) -> bool:
         try:
-            # First get the image path
             conn = sqlite3.connect(self.db_name)
             c = conn.cursor()
+            
+            # Get the image path
             c.execute('SELECT image_path FROM dishes WHERE id = ?', (dish_id,))
             result = c.fetchone()
             
@@ -119,12 +161,12 @@ class Database:
             conn.commit()
             conn.close()
             
-            # Delete the image file if it exists
+            # Delete the image from GitHub if it exists
             if result and result[0]:
-                image_path = result[0]
-                if os.path.exists(image_path):
-                    os.remove(image_path)
+                filename = result[0].split('/')[-1]
+                self.github_service.delete_image(filename)
             
             return True
-        except sqlite3.Error:
+        except Exception as e:
+            print(f"Error deleting dish: {str(e)}")
             return False 

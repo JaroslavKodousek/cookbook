@@ -1,4 +1,7 @@
 import streamlit as st
+import base64
+from io import BytesIO
+from PIL import Image
 from scripts.translations import TRANSLATIONS
 
 def navigation(t):
@@ -26,3 +29,36 @@ def navigation(t):
                         type="primary" if st.session_state.language == 'cs' else "secondary"):
                 st.session_state.language = 'cs'
                 st.rerun()
+
+def display_image(image_path, caption=None, use_container_width=True):
+    """
+    Display an image from either a base64 string or a file path.
+    
+    Args:
+        image_path: Can be a base64 string (with or without data URL prefix) or a file path
+        caption: Optional caption for the image
+        use_container_width: Whether to use container width for the image
+    """
+    try:
+        if image_path.startswith('data:image'):
+            # Handle base64 image data with data URL prefix
+            image_data = image_path.split(',')[1]
+            image_bytes = base64.b64decode(image_data)
+            image = Image.open(BytesIO(image_bytes))
+            st.image(image, caption=caption, use_container_width=use_container_width)
+        elif image_path.startswith('http'):
+            # Handle regular image URLs
+            st.image(image_path, caption=caption, use_container_width=use_container_width)
+        elif image_path.startswith('iVBORw0KGgoAAAANSUhEUg'):  # Common base64 PNG header
+            # Handle raw base64 string without data URL prefix
+            try:
+                image_bytes = base64.b64decode(image_path)
+                image = Image.open(BytesIO(image_bytes))
+                st.image(image, caption=caption, use_container_width=use_container_width)
+            except Exception as e:
+                st.warning(f"Could not decode base64 image: {str(e)}")
+        else:
+            # Handle regular file paths
+            st.image(image_path, caption=caption, use_container_width=use_container_width)
+    except Exception as e:
+        st.warning(f"Could not display image: {str(e)}")

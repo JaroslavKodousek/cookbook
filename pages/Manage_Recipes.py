@@ -93,10 +93,8 @@ if st.session_state.authenticated:
         if submit and name and ingredients:
             image_path = None
             if uploaded_file is not None:
-                # Save the uploaded file
-                image_path = os.path.join(db.images_dir, f"{name}_{uploaded_file.name}")
-                with open(image_path, "wb") as f:
-                    f.write(uploaded_file.getbuffer())
+                # Upload image to GitHub
+                image_path = db.github_service.upload_image(uploaded_file, f"{name}_{uploaded_file.name}")
             
             # Join categories with a comma
             category_str = ", ".join(categories) if categories else t('uncategorized')
@@ -129,14 +127,17 @@ if st.session_state.authenticated:
                     
                     # Add category and type selection for editing
                     current_categories = dish['category'].split(", ") if dish['category'] else []
+                    valid_categories = [
+                        "Snídaně 🥯",
+                        "Svačina 🍏",
+                        "Hlavní jídlo 🍽️",
+                    ]
+                    # Filter current categories to only include valid ones
+                    filtered_categories = [cat for cat in current_categories if cat in valid_categories]
                     new_categories = st.multiselect(
                         t('category'),
-                        options=[
-                            "Snídaně 🥯",
-                            "Svačina 🍏",
-                            "Hlavní jídlo 🍽️",
-                        ],
-                        default=current_categories,
+                        options=valid_categories,
+                        default=filtered_categories,
                         help="Select one or more categories"
                     )
                     
@@ -163,25 +164,14 @@ if st.session_state.authenticated:
                     new_image = st.file_uploader(t('update_image'), type=['jpg', 'jpeg', 'png'], key=f"edit_image_{dish['id']}")
                     
                     if st.form_submit_button(t('update_recipe')):
-                        new_image_path = dish['image_path']
-                        if new_image is not None:
-                            # Delete old image if it exists
-                            if new_image_path and os.path.exists(new_image_path):
-                                os.remove(new_image_path)
-                            # Save new image
-                            new_image_path = os.path.join(db.images_dir, f"{new_name}_{new_image.name}")
-                            with open(new_image_path, "wb") as f:
-                                f.write(new_image.getbuffer())
-                        
                         # Join categories with a comma
                         new_category_str = ", ".join(new_categories) if new_categories else t('uncategorized')
                         
-                        if db.update_dish(dish['id'], new_name, new_ingredients, new_note, new_category_str, new_type, new_image_path):
+                        if db.update_dish(dish['id'], new_name, new_ingredients, new_note, new_category_str, new_type, new_image):
                             st.success(t('recipe_updated'))
                             st.toast(t('recipe_updated'))
                             time.sleep(1)
                             st.rerun()
-                            
                         else:
                             st.error(t('update_failed'))
                             st.toast(t('update_failed'))
