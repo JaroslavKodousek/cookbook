@@ -17,40 +17,36 @@ class GitHubService:
         self.repo = self.github.get_user(self.owner).get_repo(self.repo_name)
         
     def upload_image(self, image_data, filename):
-        """Upload an image to GitHub repository.
-        
-        Args:
-            image_data: Can be one of:
-                - A file-like object (e.g., from st.file_uploader)
-                - A bytes object
-                - A base64 encoded string
-                - A URL string
-            filename: The name to save the file as
-        """
         try:
             # Handle file-like objects (e.g., from st.file_uploader)
             if hasattr(image_data, 'read'):
-                content = base64.b64encode(image_data.read()).decode('utf-8')
+                content = image_data.read()
             # Handle bytes objects
             elif isinstance(image_data, bytes):
-                content = base64.b64encode(image_data).decode('utf-8')
+                content = image_data
             # Handle string inputs
             elif isinstance(image_data, str):
                 if image_data.startswith('data:image'):
                     # Base64 image data with data URL prefix
-                    content = image_data.split(',')[1]
+                    content = base64.b64decode(image_data.split(',')[1])
                 elif image_data.startswith('http'):
                     # If it's a URL, return it directly
                     return image_data
+                elif image_data.startswith('iVBORw0KGgoAAAANSUhEUg'):  # Common base64 PNG header
+                    # Raw base64 string without data URL prefix
+                    content = base64.b64decode(image_data)
                 else:
-                    # Raw base64 image data
-                    content = image_data
+                    # Try to decode as base64
+                    try:
+                        content = base64.b64decode(image_data)
+                    except:
+                        raise ValueError("Invalid image data format")
             else:
                 raise ValueError("Unsupported image data type. Please provide a file, bytes, or string.")
-            
+
             # Create path in images directory
             path = f"images/{filename}"
-            
+
             try:
                 # Try to get existing file to get its SHA
                 contents = self.repo.get_contents(path)
@@ -58,7 +54,7 @@ class GitHubService:
                 self.repo.update_file(
                     path=path,
                     message=f"Update image: {filename}",
-                    content=content,
+                    content=content,  # <-- Pass bytes, NOT base64 string
                     sha=contents.sha,
                     branch="main"
                 )
@@ -67,16 +63,17 @@ class GitHubService:
                 self.repo.create_file(
                     path=path,
                     message=f"Add image: {filename}",
-                    content=content,
+                    content=content,  # <-- Pass bytes, NOT base64 string
                     branch="main"
                 )
-            
+
             # Return the raw URL for the image
             return f"https://raw.githubusercontent.com/{self.owner}/{self.repo_name}/main/{path}"
-            
+
         except Exception as e:
             st.error(f"Error uploading image to GitHub: {str(e)}")
             return None
+
             
     def delete_image(self, filename):
         """Delete an image from GitHub repository."""

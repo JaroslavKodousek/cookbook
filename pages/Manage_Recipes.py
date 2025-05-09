@@ -72,6 +72,7 @@ if st.session_state.authenticated:
                 "Svačina 🍏",
                 "Hlavní jídlo 🍽️",
             ],
+            default=["Hlavní jídlo 🍽️"],  # Using string value instead of index
             help="Select one or more categories"
         )
         
@@ -82,6 +83,7 @@ if st.session_state.authenticated:
                 "Doma uvařené 🍳",
                 "Oboje 💵🍳",
             ],
+            index=1,
             help="Select type"
         )
         

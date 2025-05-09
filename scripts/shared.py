@@ -30,35 +30,42 @@ def navigation(t):
                 st.session_state.language = 'cs'
                 st.rerun()
 
-def display_image(image_path, caption=None, use_container_width=True):
+def display_image(image_path, caption=None):
     """
     Display an image from either a base64 string or a file path.
     
     Args:
         image_path: Can be a base64 string (with or without data URL prefix) or a file path
         caption: Optional caption for the image
-        use_container_width: Whether to use container width for the image
     """
     try:
+        if not image_path:
+            return
+            
         if image_path.startswith('data:image'):
             # Handle base64 image data with data URL prefix
             image_data = image_path.split(',')[1]
             image_bytes = base64.b64decode(image_data)
             image = Image.open(BytesIO(image_bytes))
-            st.image(image, caption=caption, use_container_width=use_container_width)
+            st.image(image, caption=caption)
         elif image_path.startswith('http'):
             # Handle regular image URLs
-            st.image(image_path, caption=caption, use_container_width=use_container_width)
+            st.image(image_path, caption=caption)
         elif image_path.startswith('iVBORw0KGgoAAAANSUhEUg'):  # Common base64 PNG header
             # Handle raw base64 string without data URL prefix
             try:
                 image_bytes = base64.b64decode(image_path)
                 image = Image.open(BytesIO(image_bytes))
-                st.image(image, caption=caption, use_container_width=use_container_width)
+                st.image(image, caption=caption)
             except Exception as e:
                 st.warning(f"Could not decode base64 image: {str(e)}")
+                # Try to display as raw base64 with data URL prefix
+                try:
+                    st.image(f"data:image/png;base64,{image_path}", caption=caption)
+                except:
+                    st.error("Failed to display image in any format")
         else:
             # Handle regular file paths
-            st.image(image_path, caption=caption, use_container_width=use_container_width)
+            st.image(image_path, caption=caption)
     except Exception as e:
         st.warning(f"Could not display image: {str(e)}")
