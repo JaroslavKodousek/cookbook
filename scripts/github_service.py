@@ -93,4 +93,56 @@ class GitHubService:
             
     def get_image_url(self, filename):
         """Get the raw URL for an image."""
-        return f"https://raw.githubusercontent.com/{self.owner}/{self.repo_name}/main/images/{filename}" 
+        return f"https://raw.githubusercontent.com/{self.owner}/{self.repo_name}/main/images/{filename}"
+
+    def upload_file(self, content, filename, message="Update file"):
+        """Upload a file to GitHub repository.
+        
+        Args:
+            content: The content to upload (base64 encoded string)
+            filename: The name to save the file as
+            message: Commit message
+        """
+        try:
+            # Create path in root directory
+            path = filename
+            
+            try:
+                # Try to get existing file to get its SHA
+                contents = self.repo.get_contents(path)
+                # Update existing file
+                self.repo.update_file(
+                    path=path,
+                    message=message,
+                    content=content,
+                    sha=contents.sha,
+                    branch="main"
+                )
+            except Exception:
+                # File doesn't exist, create new file
+                self.repo.create_file(
+                    path=path,
+                    message=message,
+                    content=content,
+                    branch="main"
+                )
+            
+            return True
+            
+        except Exception as e:
+            st.error(f"Error uploading file to GitHub: {str(e)}")
+            return False
+
+    def get_file_content(self, filename):
+        """Get the content of a file from GitHub repository.
+        
+        Args:
+            filename: The name of the file to get
+        """
+        try:
+            path = filename
+            contents = self.repo.get_contents(path)
+            return contents.decoded_content.decode('utf-8')
+        except Exception as e:
+            print(f"Error getting file from GitHub: {str(e)}")
+            return None 

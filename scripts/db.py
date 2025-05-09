@@ -1,5 +1,6 @@
 import sqlite3
 import os
+import base64
 from typing import List, Dict, Any
 from .github_service import GitHubService
 
@@ -10,25 +11,55 @@ class Database:
         self.init_db()
         self.migrate_db()
 
+    def _sync_db_to_github(self):
+        """Sync the database file to GitHub."""
+        try:
+            with open(self.db_name, 'rb') as f:
+                db_content = f.read()
+            # Convert to base64 for GitHub storage
+            db_content_b64 = base64.b64encode(db_content).decode('utf-8')
+            self.github_service.upload_file(db_content_b64, self.db_name, "Update database")
+        except Exception as e:
+            print(f"Error syncing database to GitHub: {str(e)}")
+
+    def _get_db_from_github(self):
+        """Get the database file from GitHub."""
+        try:
+            db_content = self.github_service.get_file_content(self.db_name)
+            if db_content:
+                # Decode base64 content
+                db_bytes = base64.b64decode(db_content)
+                with open(self.db_name, 'wb') as f:
+                    f.write(db_bytes)
+                return True
+        except Exception as e:
+            print(f"Error getting database from GitHub: {str(e)}")
+        return False
+
     def init_db(self):
-        conn = sqlite3.connect(self.db_name)
-        c = conn.cursor()
-        
-        # Create dishes table
-        c.execute('''
-            CREATE TABLE IF NOT EXISTS dishes (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT NOT NULL,
-                ingredients TEXT NOT NULL,
-                instructions TEXT NOT NULL,
-                category TEXT NOT NULL DEFAULT 'Hlavní jídlo 🍽️',
-                type TEXT NOT NULL DEFAULT 'Doma uvařené 🍳',
-                image_path TEXT
-            )
-        ''')
-        
-        conn.commit()
-        conn.close()
+        # Try to get existing database from GitHub
+        if not self._get_db_from_github():
+            # If not found, create new database
+            conn = sqlite3.connect(self.db_name)
+            c = conn.cursor()
+            
+            # Create dishes table
+            c.execute('''
+                CREATE TABLE IF NOT EXISTS dishes (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT NOT NULL,
+                    ingredients TEXT NOT NULL,
+                    instructions TEXT NOT NULL,
+                    category TEXT NOT NULL DEFAULT 'Hlavní jídlo 🍽️',
+                    type TEXT NOT NULL DEFAULT 'Doma uvařené 🍳',
+                    image_path TEXT
+                )
+            ''')
+            
+            conn.commit()
+            conn.close()
+            # Sync new database to GitHub
+            self._sync_db_to_github()
 
     def migrate_db(self):
         """Migrate the database to add new columns if they don't exist."""
@@ -53,6 +84,8 @@ class Database:
         
         conn.commit()
         conn.close()
+        # Sync migrated database to GitHub
+        self._sync_db_to_github()
 
     def add_dish(self, name: str, ingredients: str, instructions: str, category: str, type: str, image_data=None) -> bool:
         try:
@@ -75,12 +108,17 @@ class Database:
             ''', (name, ingredients, instructions, category, type, image_path))
             conn.commit()
             conn.close()
+            # Sync updated database to GitHub
+            self._sync_db_to_github()
             return True
         except Exception as e:
             print(f"Error adding dish: {str(e)}")
             return False
 
     def get_all_dishes(self) -> List[Dict[str, Any]]:
+        # Get latest database from GitHub
+        self._get_db_from_github()
+        
         conn = sqlite3.connect(self.db_name)
         c = conn.cursor()
         c.execute('SELECT id, name, ingredients, instructions, category, type, image_path FROM dishes')
@@ -100,6 +138,9 @@ class Database:
 
     def update_dish(self, dish_id: int, name: str, ingredients: str, instructions: str, category: str, type: str, image_data=None) -> bool:
         try:
+            # Get latest database from GitHub
+            self._get_db_from_github()
+            
             conn = sqlite3.connect(self.db_name)
             c = conn.cursor()
             
@@ -142,6 +183,8 @@ class Database:
             ''', (name, ingredients, instructions, category, type, image_path, dish_id))
             conn.commit()
             conn.close()
+            # Sync updated database to GitHub
+            self._sync_db_to_github()
             return True
         except Exception as e:
             print(f"Error updating dish: {str(e)}")
@@ -149,6 +192,9 @@ class Database:
 
     def delete_dish(self, dish_id: int) -> bool:
         try:
+            # Get latest database from GitHub
+            self._get_db_from_github()
+            
             conn = sqlite3.connect(self.db_name)
             c = conn.cursor()
             
@@ -166,6 +212,8 @@ class Database:
                 filename = result[0].split('/')[-1]
                 self.github_service.delete_image(filename)
             
+            # Sync updated database to GitHub
+            self._sync_db_to_github()
             return True
         except Exception as e:
             print(f"Error deleting dish: {str(e)}")
