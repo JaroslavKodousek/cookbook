@@ -7,8 +7,13 @@ from .github_service import GitHubService
 class Database:
     def __init__(self, db_name: str = "cookbook.db"):
         self.db_name = db_name
-        self.github_service = GitHubService()
         self.use_memory = not os.access('.', os.W_OK)  # Check if we can write to disk
+        try:
+            self.github_service = GitHubService()
+            self.use_github = True
+        except Exception as e:
+            print(f"GitHub integration not available: {str(e)}")
+            self.use_github = False
         self.init_db()
         self.migrate_db()
 
@@ -20,6 +25,9 @@ class Database:
 
     def _sync_db_to_github(self):
         """Sync the database file to GitHub."""
+        if not self.use_github:
+            return
+            
         try:
             if self.use_memory:
                 # For in-memory database, we need to dump it to a temporary file
@@ -39,6 +47,9 @@ class Database:
 
     def _get_db_from_github(self):
         """Get the database file from GitHub."""
+        if not self.use_github:
+            return False
+            
         try:
             db_content = self.github_service.get_file_content(self.db_name)
             if db_content:
@@ -59,28 +70,31 @@ class Database:
         return False
 
     def init_db(self):
-        # Try to get existing database from GitHub
-        if not self._get_db_from_github():
-            # If not found, create new database
-            conn = self._get_connection()
-            c = conn.cursor()
+        # Try to get existing database from GitHub if available
+        if self.use_github and self._get_db_from_github():
+            return
             
-            # Create dishes table
-            c.execute('''
-                CREATE TABLE IF NOT EXISTS dishes (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    name TEXT NOT NULL,
-                    ingredients TEXT NOT NULL,
-                    instructions TEXT NOT NULL,
-                    category TEXT NOT NULL DEFAULT 'Hlavní jídlo 🍽️',
-                    type TEXT NOT NULL DEFAULT 'Doma uvařené 🍳',
-                    image_path TEXT
-                )
-            ''')
-            
-            conn.commit()
-            conn.close()
-            # Sync new database to GitHub
+        # If not found or GitHub not available, create new database
+        conn = self._get_connection()
+        c = conn.cursor()
+        
+        # Create dishes table
+        c.execute('''
+            CREATE TABLE IF NOT EXISTS dishes (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                ingredients TEXT NOT NULL,
+                instructions TEXT NOT NULL,
+                category TEXT NOT NULL DEFAULT 'Hlavní jídlo 🍽️',
+                type TEXT NOT NULL DEFAULT 'Doma uvařené 🍳',
+                image_path TEXT
+            )
+        ''')
+        
+        conn.commit()
+        conn.close()
+        # Sync new database to GitHub if available
+        if self.use_github:
             self._sync_db_to_github()
 
     def migrate_db(self):
@@ -112,7 +126,7 @@ class Database:
     def add_dish(self, name: str, ingredients: str, instructions: str, category: str, type: str, image_data=None) -> bool:
         try:
             image_path = None
-            if image_data:
+            if image_data and self.use_github:
                 # Handle different types of image data
                 if hasattr(image_data, 'name'):
                     # File upload object
@@ -130,16 +144,18 @@ class Database:
             ''', (name, ingredients, instructions, category, type, image_path))
             conn.commit()
             conn.close()
-            # Sync updated database to GitHub
-            self._sync_db_to_github()
+            # Sync updated database to GitHub if available
+            if self.use_github:
+                self._sync_db_to_github()
             return True
         except Exception as e:
             print(f"Error adding dish: {str(e)}")
             return False
 
     def get_all_dishes(self) -> List[Dict[str, Any]]:
-        # Get latest database from GitHub
-        self._get_db_from_github()
+        # Get latest database from GitHub if available
+        if self.use_github:
+            self._get_db_from_github()
         
         conn = self._get_connection()
         c = conn.cursor()
@@ -160,8 +176,9 @@ class Database:
 
     def update_dish(self, dish_id: int, name: str, ingredients: str, instructions: str, category: str, type: str, image_data=None) -> bool:
         try:
-            # Get latest database from GitHub
-            self._get_db_from_github()
+            # Get latest database from GitHub if available
+            if self.use_github:
+                self._get_db_from_github()
             
             conn = self._get_connection()
             c = conn.cursor()
@@ -172,41 +189,46 @@ class Database:
             
             # Handle image update
             image_path = current_image_path
-            if image_data is None:  # If image_data is None, we want to delete the image
-                if current_image_path:
-                    try:
-                        filename = current_image_path.split('/')[-1]
-                        self.github_service.delete_image(filename)
-                        image_path = None  # Set image_path to None since we deleted the image
-                    except Exception as e:
-                        print(f"Warning: Could not delete image: {str(e)}")
-            elif image_data != current_image_path:  # Only update if we have new image data
-                # Delete old image if it exists and is different from the new one
-                if current_image_path:
-                    try:
-                        filename = current_image_path.split('/')[-1]
-                        self.github_service.delete_image(filename)
-                    except Exception as e:
-                        print(f"Warning: Could not delete old image: {str(e)}")
-                
-                # Handle different types of image data
-                if hasattr(image_data, 'name'):
-                    # File upload object
-                    filename = f"{name}_{image_data.name}"
-                else:
-                    # For string data (URL or base64), use a generic name
-                    filename = f"{name}_image.png"
-                image_path = self.github_service.upload_image(image_data, filename)
+            if self.use_github:
+                if image_data is None:  # If image_data is None, we want to delete the image
+                    if current_image_path:
+                        try:
+                            filename = current_image_path.split('/')[-1]
+                            self.github_service.delete_image(filename)
+                            image_path = None  # Set image_path to None since we deleted the image
+                        except Exception as e:
+                            print(f"Warning: Could not delete image: {str(e)}")
+                elif image_data != current_image_path:  # Only update if we have new image data
+                    # Delete old image if it exists and is different from the new one
+                    if current_image_path:
+                        try:
+                            filename = current_image_path.split('/')[-1]
+                            self.github_service.delete_image(filename)
+                        except Exception as e:
+                            print(f"Warning: Could not delete old image: {str(e)}")
+                    
+                    # Handle different types of image data
+                    if hasattr(image_data, 'name'):
+                        # File upload object
+                        filename = f"{name}_{image_data.name}"
+                    else:
+                        # For string data (URL or base64), use a generic name
+                        filename = f"{name}_image.png"
+                    image_path = self.github_service.upload_image(image_data, filename)
             
+            # Update the dish
             c.execute('''
-                UPDATE dishes
+                UPDATE dishes 
                 SET name = ?, ingredients = ?, instructions = ?, category = ?, type = ?, image_path = ?
                 WHERE id = ?
             ''', (name, ingredients, instructions, category, type, image_path, dish_id))
+            
             conn.commit()
             conn.close()
-            # Sync updated database to GitHub
-            self._sync_db_to_github()
+            
+            # Sync updated database to GitHub if available
+            if self.use_github:
+                self._sync_db_to_github()
             return True
         except Exception as e:
             print(f"Error updating dish: {str(e)}")
@@ -214,28 +236,34 @@ class Database:
 
     def delete_dish(self, dish_id: int) -> bool:
         try:
-            # Get latest database from GitHub
-            self._get_db_from_github()
+            # Get latest database from GitHub if available
+            if self.use_github:
+                self._get_db_from_github()
             
             conn = self._get_connection()
             c = conn.cursor()
             
-            # Get the image path
+            # Get image path before deleting
             c.execute('SELECT image_path FROM dishes WHERE id = ?', (dish_id,))
-            result = c.fetchone()
+            image_path = c.fetchone()[0]
             
             # Delete the dish
             c.execute('DELETE FROM dishes WHERE id = ?', (dish_id,))
+            
             conn.commit()
             conn.close()
             
-            # Delete the image from GitHub if it exists
-            if result and result[0]:
-                filename = result[0].split('/')[-1]
-                self.github_service.delete_image(filename)
+            # Delete image from GitHub if available
+            if self.use_github and image_path:
+                try:
+                    filename = image_path.split('/')[-1]
+                    self.github_service.delete_image(filename)
+                except Exception as e:
+                    print(f"Warning: Could not delete image: {str(e)}")
             
-            # Sync updated database to GitHub
-            self._sync_db_to_github()
+            # Sync updated database to GitHub if available
+            if self.use_github:
+                self._sync_db_to_github()
             return True
         except Exception as e:
             print(f"Error deleting dish: {str(e)}")
