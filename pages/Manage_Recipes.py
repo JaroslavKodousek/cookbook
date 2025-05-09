@@ -95,8 +95,11 @@ if st.session_state.authenticated:
         if submit and name and ingredients:
             image_path = None
             if uploaded_file is not None:
-                # Upload image to GitHub
-                image_path = db.github_service.upload_image(uploaded_file, f"{name}_{uploaded_file.name}")
+                try:
+                    image_path = db.github_service.upload_image(uploaded_file, f"{name}_{uploaded_file.name}")
+                except Exception as e:
+                    st.error(f"Failed to upload image: {str(e)}")
+                    st.stop()
             
             # Join categories with a comma
             category_str = ", ".join(categories) if categories else t('uncategorized')
@@ -169,7 +172,16 @@ if st.session_state.authenticated:
                         # Join categories with a comma
                         new_category_str = ", ".join(new_categories) if new_categories else t('uncategorized')
                         
-                        if db.update_dish(dish['id'], new_name, new_ingredients, new_note, new_category_str, new_type, new_image):
+                        # Handle image upload
+                        new_image_path = dish['image_path']  # Keep existing image by default
+                        if new_image is not None:
+                            try:
+                                new_image_path = db.github_service.upload_image(new_image, f"{new_name}_{new_image.name}")
+                            except Exception as e:
+                                st.error(f"Failed to upload image: {str(e)}")
+                                st.stop()
+                        
+                        if db.update_dish(dish['id'], new_name, new_ingredients, new_note, new_category_str, new_type, new_image_path):
                             st.success(t('recipe_updated'))
                             st.toast(t('recipe_updated'))
                             time.sleep(1)

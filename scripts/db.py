@@ -3,78 +3,57 @@ import os
 import base64
 from typing import List, Dict, Any
 from .github_service import GitHubService
+import streamlit as st
 
 class Database:
     def __init__(self, db_name: str = "cookbook.db"):
-        self.db_name = db_name
-        self.use_memory = not os.access('.', os.W_OK)  # Check if we can write to disk
         try:
             self.github_service = GitHubService()
             self.use_github = True
+            self.db_name = db_name
+            self.init_db()
+            self.migrate_db()
         except Exception as e:
-            print(f"GitHub integration not available: {str(e)}")
-            self.use_github = False
-        self.init_db()
-        self.migrate_db()
+            st.error(f"GitHub integration is required but not available: {str(e)}")
+            raise
 
     def _get_connection(self):
-        """Get a database connection, using memory if we can't write to disk."""
-        if self.use_memory:
-            return sqlite3.connect(':memory:')
+        """Get a database connection."""
         return sqlite3.connect(self.db_name)
 
     def _sync_db_to_github(self):
         """Sync the database file to GitHub."""
-        if not self.use_github:
-            return
-            
         try:
-            if self.use_memory:
-                # For in-memory database, we need to dump it to a temporary file
-                conn = self._get_connection()
-                with open(self.db_name, 'wb') as f:
-                    for line in conn.iterdump():
-                        f.write(f'{line}\n'.encode('utf-8'))
-                conn.close()
-            
             with open(self.db_name, 'rb') as f:
                 db_content = f.read()
             # Convert to base64 for GitHub storage
             db_content_b64 = base64.b64encode(db_content).decode('utf-8')
             self.github_service.upload_file(db_content_b64, self.db_name, "Update database")
         except Exception as e:
-            print(f"Error syncing database to GitHub: {str(e)}")
+            st.error(f"Error syncing database to GitHub: {str(e)}")
+            raise
 
     def _get_db_from_github(self):
         """Get the database file from GitHub."""
-        if not self.use_github:
-            return False
-            
         try:
             db_content = self.github_service.get_file_content(self.db_name)
             if db_content:
                 # Decode base64 content
                 db_bytes = base64.b64decode(db_content)
-                
-                if self.use_memory:
-                    # For in-memory database, we need to execute the SQL directly
-                    conn = self._get_connection()
-                    conn.executescript(db_bytes.decode('utf-8'))
-                    conn.close()
-                else:
-                    with open(self.db_name, 'wb') as f:
-                        f.write(db_bytes)
+                with open(self.db_name, 'wb') as f:
+                    f.write(db_bytes)
                 return True
+            return False
         except Exception as e:
-            print(f"Error getting database from GitHub: {str(e)}")
-        return False
+            st.error(f"Error getting database from GitHub: {str(e)}")
+            raise
 
     def init_db(self):
-        # Try to get existing database from GitHub if available
-        if self.use_github and self._get_db_from_github():
+        # Try to get existing database from GitHub
+        if self._get_db_from_github():
             return
             
-        # If not found or GitHub not available, create new database
+        # If not found, create new database
         conn = self._get_connection()
         c = conn.cursor()
         
@@ -93,9 +72,8 @@ class Database:
         
         conn.commit()
         conn.close()
-        # Sync new database to GitHub if available
-        if self.use_github:
-            self._sync_db_to_github()
+        # Sync new database to GitHub
+        self._sync_db_to_github()
 
     def migrate_db(self):
         """Migrate the database to add new columns if they don't exist."""

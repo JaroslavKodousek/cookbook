@@ -44,7 +44,7 @@ class GitHubService:
             else:
                 raise ValueError("Unsupported image data type. Please provide a file, bytes, or string.")
 
-            # Create path in images directory
+            # Create path in images directory for GitHub
             path = f"images/{filename}"
 
             try:
@@ -72,9 +72,8 @@ class GitHubService:
 
         except Exception as e:
             st.error(f"Error uploading image to GitHub: {str(e)}")
-            return None
+            raise
 
-            
     def delete_image(self, filename):
         """Delete an image from GitHub repository."""
         try:
@@ -131,7 +130,7 @@ class GitHubService:
             
         except Exception as e:
             st.error(f"Error uploading file to GitHub: {str(e)}")
-            return False
+            raise
 
     def get_file_content(self, filename):
         """Get the content of a file from GitHub repository.
@@ -144,5 +143,7 @@ class GitHubService:
             contents = self.repo.get_contents(path)
             return contents.decoded_content.decode('utf-8')
         except Exception as e:
-            print(f"Error getting file from GitHub: {str(e)}")
-            return None 
+            if "Not Found" in str(e):
+                return None
+            st.error(f"Error getting file from GitHub: {str(e)}")
+            raise 
