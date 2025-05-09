@@ -8,12 +8,27 @@ class Database:
     def __init__(self, db_name: str = "cookbook.db"):
         self.db_name = db_name
         self.github_service = GitHubService()
+        self.use_memory = not os.access('.', os.W_OK)  # Check if we can write to disk
         self.init_db()
         self.migrate_db()
+
+    def _get_connection(self):
+        """Get a database connection, using memory if we can't write to disk."""
+        if self.use_memory:
+            return sqlite3.connect(':memory:')
+        return sqlite3.connect(self.db_name)
 
     def _sync_db_to_github(self):
         """Sync the database file to GitHub."""
         try:
+            if self.use_memory:
+                # For in-memory database, we need to dump it to a temporary file
+                conn = self._get_connection()
+                with open(self.db_name, 'wb') as f:
+                    for line in conn.iterdump():
+                        f.write(f'{line}\n'.encode('utf-8'))
+                conn.close()
+            
             with open(self.db_name, 'rb') as f:
                 db_content = f.read()
             # Convert to base64 for GitHub storage
@@ -29,8 +44,15 @@ class Database:
             if db_content:
                 # Decode base64 content
                 db_bytes = base64.b64decode(db_content)
-                with open(self.db_name, 'wb') as f:
-                    f.write(db_bytes)
+                
+                if self.use_memory:
+                    # For in-memory database, we need to execute the SQL directly
+                    conn = self._get_connection()
+                    conn.executescript(db_bytes.decode('utf-8'))
+                    conn.close()
+                else:
+                    with open(self.db_name, 'wb') as f:
+                        f.write(db_bytes)
                 return True
         except Exception as e:
             print(f"Error getting database from GitHub: {str(e)}")
@@ -40,7 +62,7 @@ class Database:
         # Try to get existing database from GitHub
         if not self._get_db_from_github():
             # If not found, create new database
-            conn = sqlite3.connect(self.db_name)
+            conn = self._get_connection()
             c = conn.cursor()
             
             # Create dishes table
@@ -63,7 +85,7 @@ class Database:
 
     def migrate_db(self):
         """Migrate the database to add new columns if they don't exist."""
-        conn = sqlite3.connect(self.db_name)
+        conn = self._get_connection()
         c = conn.cursor()
         
         # Check if columns exist
@@ -100,7 +122,7 @@ class Database:
                     filename = f"{name}_image.png"
                 image_path = self.github_service.upload_image(image_data, filename)
             
-            conn = sqlite3.connect(self.db_name)
+            conn = self._get_connection()
             c = conn.cursor()
             c.execute('''
                 INSERT INTO dishes (name, ingredients, instructions, category, type, image_path)
@@ -119,7 +141,7 @@ class Database:
         # Get latest database from GitHub
         self._get_db_from_github()
         
-        conn = sqlite3.connect(self.db_name)
+        conn = self._get_connection()
         c = conn.cursor()
         c.execute('SELECT id, name, ingredients, instructions, category, type, image_path FROM dishes')
         dishes = []
@@ -141,7 +163,7 @@ class Database:
             # Get latest database from GitHub
             self._get_db_from_github()
             
-            conn = sqlite3.connect(self.db_name)
+            conn = self._get_connection()
             c = conn.cursor()
             
             # Get current image path
@@ -195,7 +217,7 @@ class Database:
             # Get latest database from GitHub
             self._get_db_from_github()
             
-            conn = sqlite3.connect(self.db_name)
+            conn = self._get_connection()
             c = conn.cursor()
             
             # Get the image path
