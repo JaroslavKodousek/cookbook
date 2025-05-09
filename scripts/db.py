@@ -50,10 +50,19 @@ class Database:
 
     def init_db(self):
         # Try to get existing database from GitHub
-        if self._get_db_from_github():
-            return
+        try:
+            if self._get_db_from_github():
+                # Verify the database is valid by attempting to connect
+                conn = self._get_connection()
+                conn.close()
+                return
+        except Exception as e:
+            st.warning(f"Could not retrieve database from GitHub: {str(e)}")
+            # If file exists but is invalid, remove it
+            if os.path.exists(self.db_name):
+                os.remove(self.db_name)
             
-        # If not found, create new database
+        # Create new database
         conn = self._get_connection()
         c = conn.cursor()
         
@@ -73,7 +82,10 @@ class Database:
         conn.commit()
         conn.close()
         # Sync new database to GitHub
-        self._sync_db_to_github()
+        try:
+            self._sync_db_to_github()
+        except Exception as e:
+            st.warning(f"Could not sync database to GitHub: {str(e)}")
 
     def migrate_db(self):
         """Migrate the database to add new columns if they don't exist."""
