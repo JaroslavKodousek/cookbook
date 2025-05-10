@@ -17,5 +17,5 @@ def setup_page_config(page_title_key=None):
         page_title=title,
         page_icon="🍽️",
         layout="wide",
-        initial_sidebar_state="expanded"
+        initial_sidebar_state="collapsed"
     ) 

@@ -37,5 +37,10 @@ with col3:
     st.subheader(t('manage_recipes'))
     st.write(t('manage_recipes_desc'))
 
+# Add large browse collection button
+st.markdown("---")  # Add a separator
+if st.button(t('browse_collection'), use_container_width=True, type="primary"):
+    st.switch_page("pages/Browse_Collection.py")
+
 # Navigation instructions
 st.info(t('getting_started')) 
