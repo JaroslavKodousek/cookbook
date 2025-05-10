@@ -117,14 +117,18 @@ class GitHubService:
                     sha=contents.sha,
                     branch="main"
                 )
-            except Exception:
-                # File doesn't exist, create new file
-                self.repo.create_file(
-                    path=path,
-                    message=message,
-                    content=content,
-                    branch="main"
-                )
+            except Exception as e:
+                if "Not Found" in str(e):
+                    # File doesn't exist, create new file
+                    self.repo.create_file(
+                        path=path,
+                        message=message,
+                        content=content,
+                        branch="main"
+                    )
+                else:
+                    # Re-raise if it's a different error
+                    raise
             
             return True
             
