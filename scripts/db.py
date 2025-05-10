@@ -157,14 +157,17 @@ class Database:
         try:
             image_path = None
             if image_data and self.use_github:
-                # Handle different types of image data
-                if hasattr(image_data, 'name'):
-                    # File upload object
-                    filename = f"{name}_{image_data.name}"
-                else:
-                    # For string data (URL or base64), use a generic name
-                    filename = f"{name}_image.png"
-                image_path = self.github_service.upload_image(image_data, filename)
+                try:
+                    # Handle different types of image data
+                    if hasattr(image_data, 'name'):
+                        # File upload object
+                        filename = f"{name}_{image_data.name}"
+                    else:
+                        # For string data (URL or base64), use a generic name
+                        filename = f"{name}_image.png"
+                    image_path = self.github_service.upload_image(image_data, filename)
+                except Exception as e:
+                    st.warning(f"Image could not be uploaded: {str(e)}. Recipe will be added without image.")
             
             conn = self._get_connection()
             c = conn.cursor()
@@ -182,12 +185,15 @@ class Database:
             
             # Sync updated database to GitHub if available
             if self.use_github:
-                self._sync_db_to_github()
+                try:
+                    self._sync_db_to_github()
+                except Exception as e:
+                    st.warning(f"Database sync failed: {str(e)}")
             return True
         except Exception as e:
             if conn:
                 conn.rollback()
-            print(f"Error adding dish: {str(e)}")
+            st.error(f"Error adding dish: {str(e)}")
             return False
         finally:
             if conn:
